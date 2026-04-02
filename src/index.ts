@@ -4,9 +4,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import helmet from "helmet";
 import cors from "cors";
 import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
-import { createStaticMiddleware } from "./staticMiddleware";
-import { getBuildPath } from "./buildHelper";
+import { setupVite, log } from "./vite";
 
 const app = express();
 
@@ -19,13 +17,7 @@ app.use(helmet({
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: false, limit: '1mb' }));
 
-// Use custom static middleware in production
-if (process.env.NODE_ENV === 'production') {
-  // Serve static files from wherever they might be
-  const buildPath = getBuildPath();
-  app.use(express.static(buildPath));
-  app.use(createStaticMiddleware());
-}
+// Backend is a pure API server — static files are served by the frontend deployment
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -74,9 +66,8 @@ app.use((req, res, next) => {
   // doesn't interfere with the other routes
   if (app.get("env") === "development") {
     await setupVite(app, server);
-  } else {
-    serveStatic(app);
   }
+  // In production, the frontend is deployed separately — no static serving needed
 
   // ALWAYS serve the app on port 5000
   // this serves both the API and the client.
