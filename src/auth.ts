@@ -25,7 +25,7 @@ export function setupAuth(app: Express) {
     cookie: {
       secure: app.get("env") === "production",
       httpOnly: true,
-      sameSite: "lax",
+      sameSite: app.get("env") === "production" ? "none" : "lax",
       maxAge: 1000 * 60 * 60 * 24, // 24 hours
     },
   };
