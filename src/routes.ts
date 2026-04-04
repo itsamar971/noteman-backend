@@ -63,9 +63,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Analytics: Get top resources - PROTECTED
-  app.get("/api/analytics/top", ensureAuthenticated, async (req: Request, res: Response) => {
+  // Analytics: Get top resources - SILENT ON UNAUTHENTICATED
+  app.get("/api/analytics/top", async (req: Request, res: Response) => {
     try {
+      if (!req.isAuthenticated()) {
+        return res.json([]);
+      }
       const limit = parseInt(req.query.limit as string) || 10;
       const top = await storage.getTopResources(limit);
       res.json(top);
