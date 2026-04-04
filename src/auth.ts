@@ -100,7 +100,7 @@ export function setupAuth(app: Express) {
 
   app.get("/api/user", (req, res) => {
     if (!req.isAuthenticated()) {
-      return res.status(401).json({ error: "Not logged in" });
+      return res.json(null);
     }
     const { password, ...userWithoutPassword } = req.user as SelectUser;
     res.json(userWithoutPassword);
