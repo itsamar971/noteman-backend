@@ -13,6 +13,8 @@ app.use(cors({
   origin: function(origin, callback) {
     if (!origin) return callback(null, true);
     if (origin.startsWith("http://localhost:") || 
+        origin === "https://noteman.in" ||
+        origin === "https://www.noteman.in" ||
         origin === "https://noteman-frontend.vercel.app" || 
         origin.endsWith(".vercel.app") ||
         origin.endsWith(".onrender.com")) {
