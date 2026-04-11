@@ -183,8 +183,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         res.cookie("user_id", userId, {
           httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "strict",
+          secure: true, // Cross-origin cookies MUST be secure
+          sameSite: "none", // Required for cross-domain API cookies (Render vs Vercel)
           maxAge: 365 * 24 * 60 * 60 * 1000, // 1 year
         });
 
