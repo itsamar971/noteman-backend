@@ -1,6 +1,8 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { pool } from "./db";
+import { randomUUID } from "crypto";
 import { 
   semesters, branches, subjects, 
   insertResourceSchema, 
@@ -166,7 +168,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to delete resource" });
     }
   });
-  
+
+  // ─── Analytics: Visit Tracking ──────────────────────────────────────────────
+  // POST /api/visit
+  // First-time visitor: set cookie, insert visitor, increment counter
+  // Returning visitor: just return current count
+  app.post("/api/visit", async (req: Request, res: Response) => {
+    try {
+      const existingUserId = req.cookies?.user_id;
+
+      if (!existingUserId) {
+        // New visitor — generate UUID, set cookie, insert row, increment counter
+        const userId = randomUUID();
+
+        res.cookie("user_id", userId, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "strict",
+          maxAge: 365 * 24 * 60 * 60 * 1000, // 1 year
+        });
+
+        // Insert visitor row
+        await pool.query(
+          "INSERT INTO visitors (id) VALUES ($1) ON CONFLICT DO NOTHING",
+          [userId]
+        );
+
+        // Atomically increment counter and return new value
+        const result = await pool.query(
+          "UPDATE site_stats SET total_joined_users = total_joined_users + 1 WHERE id = 1 RETURNING total_joined_users"
+        );
+
+        const count = result.rows[0]?.total_joined_users ?? 0;
+        return res.json({ joinedUsers: count, isNew: true });
+      } else {
+        // Returning visitor — just fetch current count
+        const result = await pool.query(
+          "SELECT total_joined_users FROM site_stats WHERE id = 1"
+        );
+        const count = result.rows[0]?.total_joined_users ?? 0;
+        return res.json({ joinedUsers: count, isNew: false });
+      }
+    } catch (error) {
+      console.error("[/api/visit] Error:", error);
+      res.status(500).json({ error: "Failed to track visit" });
+    }
+  });
+
+  // GET /api/stats — return current joined users count
+  app.get("/api/stats", async (_req: Request, res: Response) => {
+    try {
+      const result = await pool.query(
+        "SELECT total_joined_users FROM site_stats WHERE id = 1"
+      );
+      const count = result.rows[0]?.total_joined_users ?? 0;
+      res.json({ joinedUsers: count });
+    } catch (error) {
+      console.error("[/api/stats] Error:", error);
+      res.status(500).json({ error: "Failed to fetch stats" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

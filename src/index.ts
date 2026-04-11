@@ -3,6 +3,7 @@ dotenv.config();
 import express, { type Request, Response, NextFunction } from "express";
 import helmet from "helmet";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import { registerRoutes } from "./routes";
 import { setupVite, log } from "./vite";
 
@@ -35,6 +36,7 @@ app.use(helmet({
 // Reduce JSON body size limit to 1MB (standard for APIs)
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: false, limit: '1mb' }));
+app.use(cookieParser());
 
 // Backend is a pure API server — static files are served by the frontend deployment
 
