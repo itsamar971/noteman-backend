@@ -16,6 +16,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize passport and session
   setupAuth(app);
 
+  // Health check endpoint
+  app.get("/health", (req: Request, res: Response) => {
+    res.status(200).send("OK");
+  });
+
   // Get structure data (semesters, branches, subjects)
   app.get("/api/structure", (req: Request, res: Response) => {
     res.json({ semesters, branches, subjects });
