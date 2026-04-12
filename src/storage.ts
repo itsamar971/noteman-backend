@@ -3,7 +3,7 @@ import {
   resources, type Resource, type InsertResource
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or, ilike, sql, desc } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
 export interface IStorage {
@@ -24,6 +24,16 @@ export interface IStorage {
   deleteResource(id: number): Promise<boolean>;
   getTopResources(limit: number): Promise<Resource[]>;
   incrementViewCount(id: number): Promise<void>;
+  searchResources(options: {
+    q?: string;
+    branch?: string;
+    semester?: string;
+    subject?: string;
+    category?: string;
+    resourceType?: string;
+    offset?: number;
+    limit?: number;
+  }): Promise<{ resources: Resource[]; total: number }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -140,6 +150,52 @@ export class DatabaseStorage implements IStorage {
         .set({ viewCount: (resource.viewCount || 0) + 1 })
         .where(eq(resources.id, id));
     }
+  }
+
+  async searchResources(options: {
+    q?: string;
+    branch?: string;
+    semester?: string;
+    subject?: string;
+    category?: string;
+    resourceType?: string;
+    offset?: number;
+    limit?: number;
+  }): Promise<{ resources: Resource[]; total: number }> {
+    const { q, branch, semester, subject, category, resourceType, offset = 0, limit = 10 } = options;
+    
+    const conditions = [];
+
+    if (q) {
+      conditions.push(or(
+        ilike(resources.title, `%${q}%`),
+        ilike(resources.subject, `%${q}%`),
+        ilike(resources.branch, `%${q}%`)
+      ));
+    }
+
+    if (branch) conditions.push(eq(resources.branch, branch));
+    if (semester) conditions.push(eq(resources.semester, semester));
+    if (subject) conditions.push(eq(resources.subject, subject));
+    if (category) conditions.push(eq(resources.category, category));
+    if (resourceType) conditions.push(eq(resources.resourceType, resourceType));
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const totalResult = await db.select({ count: sql<number>`count(*)` })
+      .from(resources)
+      .where(whereClause);
+    
+    const total = Number(totalResult[0]?.count || 0);
+
+    const result = await db.select()
+      .from(resources)
+      .where(whereClause)
+      .orderBy(desc(resources.uploadedAt))
+      .limit(limit)
+      .offset(offset);
+
+    return { resources: result, total };
   }
 }
 

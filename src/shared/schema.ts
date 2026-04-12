@@ -9,6 +9,18 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
 });
 
+// Analytics: Visitor tracking
+export const visitors = pgTable("visitors", {
+  id: text("id").primaryKey(), // UUID from cookie
+  firstSeen: timestamp("first_seen").defaultNow(),
+});
+
+// Analytics: Site stats counter
+export const siteStats = pgTable("site_stats", {
+  id: serial("id").primaryKey(),
+  totalJoinedUsers: integer("total_joined_users").default(0).notNull(),
+});
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
@@ -35,6 +47,7 @@ export const resources = pgTable("resources", {
   uploadedAt: timestamp("uploadedAt").defaultNow(),
   uploadedBy: text("uploadedBy"),  // Nullable
   viewCount: integer("viewCount").default(0), // Tracking clicks/views
+  resourceType: text("resourceType").default("not-specified"), // e.g., "formulas", "important-questions", "cheatsheets", "practice"
 });
 
 export const resourceSchema = createInsertSchema(resources).omit({
@@ -236,8 +249,10 @@ export const semesterSchema = z.enum(semesters as [string, ...string[]]);
 export const branchSchema = z.enum(branches as [string, ...string[]]);
 export const subjectSchema = z.enum(subjects as [string, ...string[]]);
 export const categorySchema = z.enum(["exam", "textbook"]);
+export const resourceTypeSchema = z.enum(["formulas", "important-questions", "cheatsheets", "practice", "not-specified"]);
 
 export type Semester = z.infer<typeof semesterSchema>;
 export type Branch = z.infer<typeof branchSchema>;
 export type Subject = z.infer<typeof subjectSchema>;
 export type Category = z.infer<typeof categorySchema>;
+export type ResourceType = z.infer<typeof resourceTypeSchema>;

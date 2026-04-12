@@ -11,6 +11,10 @@ import {
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { setupAuth, ensureAuthenticated } from "./auth";
+import { upload } from "./middleware/upload";
+import { supabase } from "./lib/supabase";
+import { pathToFileURL } from "url";
+import path from "path";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize passport and session
@@ -117,6 +121,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // ─── Search API ─────────────────────────────────────────────────────────────
+  app.get("/api/resources/search", async (req: Request, res: Response) => {
+    try {
+      const q = req.query.q as string | undefined;
+      const branch = req.query.branch as string | undefined;
+      const semester = req.query.semester as string | undefined;
+      const subject = req.query.subject as string | undefined;
+      const category = req.query.category as string | undefined;
+      const resourceType = req.query.resourceType as string | undefined;
+      const page = parseInt(req.query.page as string || "1");
+      const limit = parseInt(req.query.limit as string || "10");
+      const offset = (page - 1) * limit;
+
+      const result = await storage.searchResources({
+        q, branch, semester, subject, category, resourceType, offset, limit
+      });
+
+      res.json(result);
+    } catch (error) {
+      console.error("[Search Error]:", error);
+      res.status(500).json({ error: "Search failed" });
+    }
+  });
+
   // Get a specific resource by ID
   app.get("/api/resources/:id", async (req: Request, res: Response) => {
     try {
@@ -171,6 +199,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(204).end();
     } catch (error) {
       res.status(500).json({ error: "Failed to delete resource" });
+    }
+  });
+
+  // ─── File Upload API ────────────────────────────────────────────────────────
+  app.post("/api/resources/upload", ensureAuthenticated, upload.single("file"), async (req: Request, res: Response) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const file = req.file;
+      const filename = `${randomUUID()}-${file.originalname.replace(/\s+/g, "_")}`;
+      const filePath = `notes/${filename}`;
+
+      const { data, error } = await supabase.storage
+        .from("notes")
+        .upload(filePath, file.buffer, {
+          contentType: file.mimetype,
+          upsert: false
+        });
+
+      if (error) {
+        console.error("Supabase Upload Error:", error);
+        return res.status(500).json({ error: "Failed to upload to storage" });
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("notes")
+        .getPublicUrl(filePath);
+
+      res.json({
+        fileUrl: publicUrl,
+        storagePath: filePath,
+        fileName: file.originalname,
+        fileSize: file.size,
+        fileType: file.mimetype
+      });
+    } catch (error) {
+      console.error("Upload Error:", error);
+      res.status(500).json({ error: "Internal server error during upload" });
     }
   });
 
