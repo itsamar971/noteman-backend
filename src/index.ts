@@ -5,7 +5,7 @@ import helmet from "helmet";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import { registerRoutes } from "./routes";
-import { setupVite, log } from "./vite";
+import { log } from "./logger";
 
 const app = express();
 
@@ -82,10 +82,9 @@ app.use((req, res, next) => {
     // Don't re-throw, it can cause the server to crash
   });
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
+  // only setup vite in development — frontend is deployed separately in production
   if (app.get("env") === "development") {
+    const { setupVite } = await import("./vite");
     await setupVite(app, server);
   }
   // In production, the frontend is deployed separately — no static serving needed
