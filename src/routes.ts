@@ -221,8 +221,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
 
       if (error) {
-        console.error("Supabase Upload Error:", error);
-        return res.status(500).json({ error: "Failed to upload to storage" });
+        console.error("Supabase Storage Error Details:", {
+          message: error.message,
+          name: error.name,
+          status: (error as any).status,
+          error: error
+        });
+        return res.status(500).json({ 
+          error: "Failed to upload to storage",
+          details: error.message
+        });
       }
 
       const { data: { publicUrl } } = supabase.storage
