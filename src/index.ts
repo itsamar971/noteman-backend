@@ -82,12 +82,8 @@ app.use((req, res, next) => {
     // Don't re-throw, it can cause the server to crash
   });
 
-  // only setup vite in development — frontend is deployed separately in production
-  if (app.get("env") === "development") {
-    const { setupVite } = await import("./vite");
-    await setupVite(app, server);
-  }
-  // In production, the frontend is deployed separately — no static serving needed
+  // Backend is a pure API server.
+  // Frontend runs separately (port 5173 locally, Vercel in production).
 
   // ALWAYS serve the app on port 5000
   // this serves both the API and the client.
