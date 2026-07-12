@@ -12,7 +12,8 @@ import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { setupAuth, ensureAuthenticated } from "./auth";
 import { upload } from "./middleware/upload";
-import { supabase } from "./lib/supabase";
+import { r2Client } from "./lib/r2";
+import { PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { pathToFileURL } from "url";
 import path from "path";
 
@@ -192,10 +193,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (isNaN(id)) {
         return res.status(400).json({ error: "Invalid resource ID" });
       }
-      const success = await storage.deleteResource(id);
-      if (!success) {
+
+      // Fetch the resource first to get the storagePath
+      const resource = await storage.getResourceById(id);
+      if (!resource) {
         return res.status(404).json({ error: "Resource not found" });
       }
+
+      // Delete the file from Cloudflare R2
+      const bucketName = process.env.R2_BUCKET_NAME || "noteman";
+      try {
+        await r2Client.send(new DeleteObjectCommand({
+          Bucket: bucketName,
+          Key: resource.storagePath
+        }));
+      } catch (r2Error) {
+        console.error("Failed to delete from R2:", r2Error);
+        // We continue anyway so the DB record gets cleaned up
+      }
+
+      const success = await storage.deleteResource(id);
       res.status(204).end();
     } catch (error) {
       res.status(500).json({ error: "Failed to delete resource" });
@@ -213,29 +230,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const filename = `${randomUUID()}-${file.originalname.replace(/\s+/g, "_")}`;
       const filePath = `notes/${filename}`;
 
-      const { data, error } = await supabase.storage
-        .from("notes")
-        .upload(filePath, file.buffer, {
-          contentType: file.mimetype,
-          upsert: false
-        });
-
-      if (error) {
-        console.error("Supabase Storage Error Details:", {
-          message: error.message,
-          name: error.name,
-          status: (error as any).status,
-          error: error
-        });
+      const bucketName = process.env.R2_BUCKET_NAME || "noteman";
+      
+      try {
+        await r2Client.send(new PutObjectCommand({
+          Bucket: bucketName,
+          Key: filePath,
+          Body: file.buffer,
+          ContentType: file.mimetype,
+        }));
+      } catch (uploadError: any) {
+        console.error("R2 Storage Error Details:", uploadError);
         return res.status(500).json({ 
           error: "Failed to upload to storage",
-          details: error.message
+          details: uploadError.message
         });
       }
 
-      const { data: { publicUrl } } = supabase.storage
-        .from("notes")
-        .getPublicUrl(filePath);
+      const publicUrlBase = process.env.R2_PUBLIC_URL || "https://pub-a8249f3ea9a04d5cbb2fdeb451593e89.r2.dev";
+      const publicUrl = `${publicUrlBase.replace(/\/$/, '')}/${filePath}`;
 
       res.json({
         fileUrl: publicUrl,
