@@ -45,7 +45,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const validationError = fromZodError(error);
         res.status(400).json({ error: validationError.message });
       } else {
-        res.status(500).json({ error: "Failed to create resource" });
+        console.error("Database Insert Error:", error);
+        res.status(500).json({ 
+          error: "Failed to create resource", 
+          details: error instanceof Error ? error.message : String(error) 
+        });
       }
     }
   });
